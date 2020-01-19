@@ -1,0 +1,298 @@
+---
+title: "Analysis on Factors Impacting Internet Usage"
+output: html_document
+author: Krupa Patel
+---
+
+Content List:
+-> Title
+-> Importing the Data
+-> Merging the Data
+-> Cleaning the Data
+-> Mapping the Data
+-> Problem Introduction
+-> Problem #1: Does internet access decrease spending on education due to an increase in productivity?
+-> Problem #2: Does internet access decrease spending on health due to an increase in productivity?
+-> Problem #3: How does the democracy score compare with internet usage? 
+-> Conclusions
+-> Recommendation
+-> Appendix A (Roles Each Team Member Played in the Project) 
+
+
+---------------------------------------------------------------------------------------------------------------------          
+Importing the Data:
+
+manually imported the data using the read_csv()
+
+```{r}
+library(readr)
+life_expect <- read_csv("lifeexpect_cia2017.csv")
+gdpppp <- read_csv("gdpppp_cia2017.csv")
+health_expend <- read_csv("healthexpend_cia2017.csv")
+democracy_index <- read_csv("democracyindex2017.csv")
+education <- read_csv("education_cia2017.csv")
+internet_users <- read_csv("internetusers_cia2017.csv")
+population <- read_csv("population_cia2017.csv")
+world_regions <- read_csv("world_regions.csv")
+telephonelines <- read_csv("telephonelines_cia2017.csv")
+```
+---------------------------------------------------------------------------------------------------------------------
+Merging The Data:
+
+By using the function full_join(), combined each of the datasets into one data set by using country as a key.
+
+```{r}
+library(tidyverse)
+dirty_full_data <- full_join(internet_users, population, by="Country")
+dirty_fuller_data <- full_join(dirty_full_data, telephonelines, by="Country")
+dirty_fullest_data <- full_join(dirty_fuller_data, world_regions, by="Country")
+
+d1 <- full_join(dirty_fullest_data,gdpppp,by="Country")
+d2<- full_join(d1,health_expend,by="Country")
+names(d2)[17] <- "GDPHealth"      # changed the name "% of Health to "GDPHealth
+d3<- full_join(d2,education,by="Country")
+d4<-full_join(d3,democracy_index,by="Country")
+d5<-full_join(d4,life_expect,by="Country")
+names(d5)[20] <- "GDPEducation"  # changed the name "% of Education to "GDPEducation
+d6 <- select(d5,-"Date of Information.x",-"Rank.y",-"Date of Information.y",-"Rank.x.x",-"Date of Information.x.x",-"Rank.y.y",-"Rank.x.x.x",-"Date of Information.y.y",-"Date of Information.x.x.x",-"Rank.y.y.y",-"Date of Information.y.y.y",-"Rank.x.x.x.x",-"Rank.y.y.y.y",-"Date of Information",-"Rank.x")
+
+names(d6)[2] <- "Internet_users"                   #"INTERNET USER"to "Internet_user"
+names(d6)[3] <- "Population"                       #"POPULATION" to "Population"
+names(d6)[4] <- "Telephone_MainLines"              #"TELEPHONES - MAIN LINES IN USE" to "Telephone_MainLines"
+names(d6)[7] <- "GDP_Per_Capita"                   #"GDP - PER CAPITA (PPP)" to "GDP_Per_Capita"
+names(d6)[10] <- "Democracy_Score"                 #"Score" to "Democracy_Score"
+names(d6)[11] <- "Electoral_Process_Pluralism"     #"Electoral processand pluralism" to "Electoral_Process_Pluralism"
+names(d6)[17] <- "Life_Expectancy"                 #"Years" to "Life_Experctancy"
+```
+---------------------------------------------------------------------------------------------------------------------
+Cleaning the Data:
+ changed the name from Asic & Pacific to Asia & Pacific
+
+```{r}
+d6$Region[d6$Region == "Asic & Pacific"] <- "Asia & Pacific"
+```
+
+defining internet usage: internet usage is the proportion of population to the internet users in that country.  
+
+```{r}
+d7<- mutate(d6, Prop_usage = ((Internet_users)/ Population))
+```
+
+removed the dollar sign from data set to ensure that the GDP per Capita values are integer values rather that character values.
+
+```{r}
+d7$GDP_Per_Capita_2 = as.numeric(gsub("[\\$,]","",d7$GDP_Per_Capita))
+```
+---------------------------------------------------------------------------------------------------------------------
+Mapping the Data:
+
+```{r}
+
+d7[7,5] = "Europe"
+d7[4,1] = "USA"
+d7[11,1] = "UK"
+```
+
+```{r}
+#install.packages("maps")
+library(maps)
+gg2 <- ggplot()
+gg2 <- gg2 + geom_map(
+  data = world,
+  map = world,
+  aes(x = long, y = lat, map_id = region),
+  fill = "#ffffff",
+  color = "#ffffff",
+  size = 0.20
+)
+  gg2 <- gg2 + scale_fill_continuous(low = 'thistle2', high = 'darkblue',
+  guide = 'colorbar')
+gg2 <- gg2 + geom_map(
+  data = d7_map,
+  map = world,
+  aes(fill = d7_map$GDP_Per_Capita_2, map_id = region),
+  color = "#ffffff",
+  size = 0.15
+  )
+  
+  gg2 <- gg2 + scale_fill_continuous(low = 'thistle2', high = 'darkblue',
+  guide = 'colorbar')
+  
+gg2
+```
+
+```{r}
+world <- map_data("world") 
+d7_map <- d7 %>% rename(region = Country) 
+
+d7_map <- semi_join(d7_map, world, by = "region")
+d7_map
+gg <- ggplot()
+gg <- gg + geom_map(
+  data = world,
+  map = world,
+  aes(x = long, y = lat, map_id = region),
+  fill = "#ffffff",
+  color = "#ffffff",
+  size = 0.20
+)
+
+gg <- gg + geom_map(
+  data = d7_map,
+  map = world,
+  aes(fill = d7_map$Prop_usage, map_id = region),
+  color = "#ffffff",
+  size = 0.15
+  )
+  
+  gg <- gg + scale_fill_continuous(low = 'thistle2', high = 'darkblue',
+  guide = 'colorbar')
+gg
+```
+
+
+```{r}   
+d7 <- filter(d7, Region != "NA")            #removes NA values in region
+d7 <- filter(d7, Region != "Unknown")       #removes unknown values in Region
+ggplot(data=d7)+geom_boxplot(mapping=aes(x=Region,y=Prop_usage))
+```
+---------------------------------------------------------------------------------------------------------------------
+Problem Introduction:
+
+Problem #1: Does internet access decrease spending on education due to an increase in productivity?
+Problem #2: Does internet access decrease spending on health due to an increase in productivity?
+Problem #3: How does the democracy score compare with internet usage?
+
+---------------------------------------------------------------------------------------------------------------------
+Problem #1: Does internet access decrease spending on education due to an increase in productivity?
+
+
+```{r}
+#created a new data set Edu_Internet made up of Country,GDPEducation,Prop_Usage,Region and "Global South" as the variables
+Edu_Internet <- select(d7,Country,GDPEducation,Prop_usage,Region,"Global South")
+
+#Removes the NA values in the GDPEducation Variables 
+Edu_Internet <-filter(Edu_Internet,GDPEducation != "NA")
+
+#Removes the NA values in the Prop_Usage Variables 
+Edu_Internet <-filter(Edu_Internet,Prop_usage != "NA")
+
+#Removes the NA values in the Region Variables
+Edu_Internet <-filter(Edu_Internet,Region != "NA")
+
+#Removes the NA values in the "Global South" Variables
+Edu_Internet <-filter(Edu_Internet,"Global South" != "NA")
+
+#Changes the the Global South value at the Edu_Internet[5,5] from "NA" to Global North for the country of Russia 
+Edu_Internet[5,5] = "Global North"
+
+#checks that ithe number of NA values sums up to 0 since all NA values have been remoeved
+sum(is.na(Edu_Internet))
+```
+
+
+```{r}
+library(modelr)
+
+#Creates a scatter plot of the Prop_Usage(Internet Usage/Population) against the GDPeducation and the n facet-wrapped them according to the regions
+ggplot(data=Edu_Internet)+geom_point(mapping=aes(x=Prop_usage,y=GDPEducation))+facet_wrap(~ Region, nrow = 3)
+```
+
+```{r}
+# Creates a scatter plot of the Prop_usage and the GDPEducation and color code them based on the region.
+ggplot(data=Edu_Internet)+geom_point(mapping=aes(x=Prop_usage,y=GDPEducation,colour=Edu_Internet$"Global South"))
+```
+
+
+```{r}
+#function for the linear model
+mod_Edu_Internet <- lm(GDPEducation ~ Prop_usage, data = Edu_Internet)
+
+#The code below was used to generate a prediction model
+grid <- Edu_Internet %>%
+  data_grid(Prop_usage, .model = mod_Edu_Internet) %>%
+  add_predictions(mod_Edu_Internet)
+grid
+ggplot(grid, aes(Prop_usage, pred)) + geom_point()
+```
+
+--------------------------------------------------------------------------------------------------------------------- 
+Problem #2: Does internet access decrease spending on health due to an increase in productivity?
+
+
+```{r}
+Health_Internet <- select(d7,Country,GDPHealth,Prop_usage,Region,"Global South",Life_Expectancy)
+na_remove<-which(!complete.cases(Health_Internet))
+Health_Internet <- Health_Internet[-na_remove,]
+sum(is.na(Health_Internet))
+```
+
+```{r}
+library(modelr)
+
+ggplot(Health_Internet, mapping = aes(x=Prop_usage,y=Life_Expectancy))+geom_point() + geom_smooth(se = FALSE) 
+mod_life_expectancy<-lm(Life_Expectancy~Prop_usage,data=Health_Internet)
+grid<- Health_Internet %>% 
+  data_grid(Prop_usage = seq_range(Prop_usage,40)) %>%
+  add_predictions(mod_life_expectancy,"Life_Expectancy")
+```
+
+```{r}
+ggplot(Health_Internet,aes(Prop_usage,Life_Expectancy))+
+  geom_hex(bins = 50)+
+  geom_line(data=grid,color = "red",size = 1)+
+  geom_point()
+  
+```
+
+```{r}
+Health_Internet <- Health_Internet %>%
+  add_residuals(mod_life_expectancy)
+ggplot(Health_Internet, aes(Prop_usage, resid)) +
+  geom_ref_line(h=0) +
+  geom_line()
+lm(Health_Internet$Life_Expectancy ~ Health_Internet$Prop_usage)$coeff[2]
+```
+
+```{r}
+mod_life_expectancy_GDP<-lm(Life_Expectancy~GDP_Per_Capita_2,data=d7)
+grid<- d7 %>% 
+  data_grid(GDP_Per_Capita_2 = seq_range(GDP_Per_Capita_2,40)) %>%
+  add_predictions(mod_life_expectancy_GDP,"Life_Expectancy")
+ggplot(d7,aes(x=log(GDP_Per_Capita_2), y=Life_Expectancy)) + geom_point() +
+  geom_hex(bins = 50)+
+  geom_line(data=grid,color = "red",size = 1)
+```
+
+---------------------------------------------------------------------------------------------------------------------          
+Problem #3: How does the democracy score compare with internet usage? 
+
+
+```{r}
+
+Democracy_Internet <- select(d7,Country,Democracy_Score,Prop_usage,Region,"Global South", Category, GDP_Per_Capita_2)
+na_remove<-which(!complete.cases(Democracy_Internet))
+Democracy_Internet <- Democracy_Internet[-na_remove,]
+#View(Democracy_Internet)
+
+```
+
+```{r}
+gg2 <- ggplot(data = Democracy_Internet, mapping = aes(x = reorder(Category,Prop_usage,FUN = median ), y = Prop_usage))
+gg2 + geom_boxplot()
+
+ggplot(data = Democracy_Internet, mapping = aes(x = reorder(Category,log(GDP_Per_Capita_2),FUN = median), y = log(GDP_Per_Capita_2))) + geom_boxplot()
+
+```
+
+---------------------------------------------------------------------------------------------------------------------          
+Conclusions:
+
+The proportion of internet users in a country is a strong indicator of how developepd a country is. Whether you are looking at it through a economical standpoint, health standpoint, or political standpoint, we see that the better the conditions are in the country, the more likely the country has a higher proportion of internet users. Although, it is clear that proportion of internet users does not have a clear relationship on how much a country spends on GDP, other than a slight relationship European countries' internet usage proportion and their education spending, how much a country spends on GDP is nevertheless an interesting case.
+---------------------------------------------------------------------------------------------------------------------          
+
+
+
+        
+
+
